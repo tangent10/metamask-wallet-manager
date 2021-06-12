@@ -1,4 +1,3 @@
-import { copyFile } from "fs";
 import React, { useState } from "react";
 import { CopyToClipboard } from "react-copy-to-clipboard";
 
@@ -19,6 +18,7 @@ const App = () => {
 
   const [importing, setImporting] = useState(false);
   const [importData, setImportData] = useState("");
+  const [filter, setFilter] = useState("");
 
   const [name, setName] = useState("");
   const [account, setAccount] = useState("");
@@ -67,15 +67,13 @@ const App = () => {
   }
 
   return (
-    <div style={{ margin: "0 auto", marginTop: "50px", width: "800px" }}>
+    <div style={{margin: '0 auto', marginTop: '15px', width: '800px'}}>
+        {!!account ? (
       <div style={{ marginBottom: "10px" }}>
+        <div>
         <span>current wallet: </span>
         <span style={{ marginLeft: "10px" }}>
-          {!!account ? (
-            account
-          ) : (
-            <button onClick={onUnlockWallet}>unlock wallet</button>
-          )}
+            {account }
         </span>
       </div>
       <div style={{ marginBottom: "10px" }}>
@@ -93,7 +91,13 @@ const App = () => {
         <button onClick={saveAccount} style={{ marginLeft: "10px" }}>
           [+]
         </button>
-      </div>
+        </div>
+        </div>
+        ): (
+      <div style={{ marginBottom: "10px" }}>
+            <button onClick={onUnlockWallet}>unlock wallet</button>
+            </div>
+        )}
 
       <hr />
 
@@ -170,8 +174,13 @@ const App = () => {
         <div />
       )}
 
+      <div>
+        <label htmlFor="filter-input">filter:</label>
+        <input value={filter} onChange={(e) => setFilter(e.target.value)} />
+      </div>
+
       <ol>
-        {accounts.map((a) => (
+        {accounts.filter(a => a.address.toLowerCase().includes(filter.toLowerCase())).map((a) => (
           <li style={{ fontFamily: "Consolas" }} key={a.name}>
             {a.address} : {a.name}
             <button
@@ -205,23 +214,8 @@ const App = () => {
           clear accounts
         </button>
       </div>
-
-      {/* <div>
-        <button
-          onClick={() => {
-            // todo: save old accounts in like accounts.bak to allow for a redo
-            // otherwise this is pretty fragile
-            localStorage.setItem("accounts", JSON.stringify(accounts));
-          }}
-        >
-          save accounts
-        </button>
-      </div> */}
     </div>
   );
 };
 
 export default App;
-function copy(accountsInStorage: string) {
-  throw new Error("Function not implemented.");
-}

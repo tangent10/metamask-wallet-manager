@@ -1,126 +1,227 @@
-import React, {  useState } from 'react'
+import { copyFile } from "fs";
+import React, { useState } from "react";
+import { CopyToClipboard } from "react-copy-to-clipboard";
 
 declare const window: any;
 
 interface account {
-  name: string
-  address: string
+  name: string;
+  address: string;
 }
 
 const App = () => {
-
-
   let startingAccounts = [] as account[];
-    const savedAccounts = localStorage.getItem("accounts");
-    if(savedAccounts && savedAccounts !== '') {
-      startingAccounts = JSON.parse(savedAccounts);
-    }
+  const savedAccounts = localStorage.getItem("accounts");
+  if (savedAccounts && savedAccounts !== "") {
+    startingAccounts = JSON.parse(savedAccounts);
+  }
   const [accounts, setAccounts] = useState(startingAccounts);
 
-  const [name, setName] = useState('');
-  const [account, setAccount] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importData, setImportData] = useState("");
+
+  const [name, setName] = useState("");
+  const [account, setAccount] = useState("");
   function onUnlockWallet() {
     try {
       if (window.ethereum) {
         window.ethereum
-        .request({ method: 'eth_requestAccounts' })
-        .then(handleAccountsChanged)
-        .catch((err: string) => {
-          alert(err)
-          console.error(err)
-        })
+          .request({ method: "eth_requestAccounts" })
+          .then(handleAccountsChanged)
+          .catch((err: string) => {
+            alert(err);
+            console.error(err);
+          });
 
-        window.ethereum.on('chainChanged', handleNetworkChange)
-        window.ethereum.on('accountsChanged', handleAccountsChanged)
+        window.ethereum.on("chainChanged", handleNetworkChange);
+        window.ethereum.on("accountsChanged", handleAccountsChanged);
       }
     } catch (error) {
-      alert(error)
+      alert(error);
     } finally {
-      console.log('success')
+      console.log("success");
     }
   }
 
   // metamask event handlers
   function handleNetworkChange() {
-    window.location.reload()
+    window.location.reload();
   }
   function handleAccountsChanged(accounts: string[]) {
     if (accounts.length === 0) {
-      console.log('Please connect to MetaMask.')
+      console.log("Please connect to MetaMask.");
     } else if (accounts[0] !== account) {
-      setAccount(accounts[0])
+      setAccount(accounts[0]);
     }
   }
 
+  function saveAccount() {
+    const existingIndex = accounts.findIndex((a) => a.address === account);
+    if (existingIndex > -1) {
+      accounts[existingIndex].name = name;
+    } else {
+      accounts.push({ address: account, name: name });
+    }
+    setAccounts([...accounts]);
+    localStorage.setItem("accounts", JSON.stringify(accounts));
+  }
+
   return (
-    <div style={{margin: '0 auto', marginTop: '50px', width: '800px'}}>
+    <div style={{ margin: "0 auto", marginTop: "50px", width: "800px" }}>
+      <div style={{ marginBottom: "10px" }}>
+        <span>current wallet: </span>
+        <span style={{ marginLeft: "10px" }}>
+          {!!account ? (
+            account
+          ) : (
+            <button onClick={onUnlockWallet}>unlock wallet</button>
+          )}
+        </span>
+      </div>
+      <div style={{ marginBottom: "10px" }}>
+        <label htmlFor="name-input">name:</label>
+        <input
+          id="name-input"
+          onChange={(e) => setName(e.target.value)}
+          onKeyUp={(e) => {
+            if (e.key === "Enter") {
+              saveAccount();
+            }
+          }}
+        />
 
-    <div>
-      <span>current wallet: </span><span style={{marginLeft: '10px'}}>
-      {!!account ? (account) : (<button onClick={onUnlockWallet}>unlock wallet</button>) }
-      </span>
-      
-    </div>
-    <div>
-    <label htmlFor="name-input">name:</label>
-    <input id="name-input" onChange={(e) => setName(e.target.value)} />
-    </div>
-
-    <hr />
-
-    <div>
-    all accounts:
+        <button onClick={saveAccount} style={{ marginLeft: "10px" }}>
+          [+]
+        </button>
       </div>
 
+      <hr />
 
-<ol>
-    {accounts.map(a => <li style={{fontFamily: 'Consolas'}} key={a.name}>{a.address} : {a.name}</li>)}
-</ol>
-    {/* <table style={{border: '1px black solid'}}>
-    <thead>
-    <tr>
-    <th style={{border: '1px black solid', padding: '10px'}}>name</th>
-    <th style={{border: '1px black solid', padding: '10px'}}>address</th>
-    </tr>
-    </thead>
-    <tbody>
-    {accounts.map(a => <tr key={a.name}><td style={{border: '1px black solid', padding: '10px'}}>{a.name}</td><td style={{border: '1px black solid', padding: '10px'}}>{a.address}</td></tr>)}
-    </tbody>
-    </table> */}
+      <div>all accounts:</div>
 
-    <div>
-    <button onClick={() => {
-      // uh feels a bit hacky
-      // but apparently react doesn't want to redraw the screen
-      // unless setAccounts is called?
-      accounts.push({ address: account, name: name});
-      setAccounts([...accounts]);
-    }}>add address</button>
+      <div>
+        <div>
+          <label htmlFor="export-btn">export:</label>
+          <CopyToClipboard
+            onCopy={() => {
+              console.log("copied");
+              alert(
+                "copied accounts object. save this json string to a text file to import in the future."
+              );
+            }}
+            text={JSON.stringify(accounts)}
+          >
+            <button id="export-btn" style={{ marginLeft: "10px" }}>
+              EXPORT
+            </button>
+          </CopyToClipboard>
+        </div>
+
+        <div>
+          <label htmlFor="import-btn">import:</label>
+          <button
+            id="import-btn"
+            style={{ marginLeft: "10px" }}
+            onClick={() => setImporting(true)}
+          >
+            IMPORT
+          </button>
+        </div>
+      </div>
+
+      {importing ? (
+        <div>
+          <label htmlFor="import-txt-area">paste here</label>
+          <input
+            id="import-txt-area"
+            onChange={(e) => setImportData(e.target.value)}
+            value={importData}
+          />
+          <button
+            onClick={() => {
+              const importAccounts = JSON.parse(importData);
+              const importLength = importAccounts.length;
+              const storageAccounts = localStorage.getItem("accounts");
+              if (storageAccounts && storageAccounts !== "") {
+                const storageAccountsObj = JSON.parse(storageAccounts);
+                const currentCount = storageAccountsObj.length;
+                const isConfirmed = window.confirm(
+                  `importing will overwrite your saved addresses. you have ${currentCount} addresses saved currently and would be importing ${importLength} new accounts`
+                );
+                if (!isConfirmed) {
+                  setImportData("");
+                  return;
+                }
+              }
+              localStorage.setItem("accounts", importData);
+              const newAccounts = localStorage.getItem("accounts");
+              if (newAccounts) {
+                const importedData = JSON.parse(newAccounts);
+                setAccounts(importedData);
+              }
+              setImportData("");
+              setImporting(false);
+            }}
+          >
+            SAVE
+          </button>
+        </div>
+      ) : (
+        <div />
+      )}
+
+      <ol>
+        {accounts.map((a) => (
+          <li style={{ fontFamily: "Consolas" }} key={a.name}>
+            {a.address} : {a.name}
+            <button
+              onClick={() => {
+                const newAccounts = accounts.filter(
+                  (s) => s.address !== a.address
+                );
+                setAccounts(newAccounts);
+                localStorage.setItem("accounts", JSON.stringify(accounts));
+              }}
+              style={{ marginLeft: "10px" }}
+            >
+              [-]
+            </button>
+          </li>
+        ))}
+      </ol>
+
+      <div>
+        <button
+          onClick={() => {
+            const isConfirmed = window.confirm(
+              "NOTE: make sure you have exported your addresses if you want to use them again, or you'll have to re-enter each one manually again after clearing the list."
+            );
+            if (isConfirmed) {
+              setAccounts([]);
+              localStorage.setItem("accounts", "[]");
+            }
+          }}
+        >
+          clear accounts
+        </button>
+      </div>
+
+      {/* <div>
+        <button
+          onClick={() => {
+            // todo: save old accounts in like accounts.bak to allow for a redo
+            // otherwise this is pretty fragile
+            localStorage.setItem("accounts", JSON.stringify(accounts));
+          }}
+        >
+          save accounts
+        </button>
+      </div> */}
     </div>
+  );
+};
 
-    <div>
-    <button onClick={() => setAccounts([])}>clear accounts</button>
-    </div>
-
-    <div>
-    <button onClick={() => {
-      for(let i = 0; i < accounts.length; i++) {
-        console.log(`[${i}] : ${JSON.stringify(accounts[i])}`);
-      }
-    }}>list accounts </button>
-    </div>
-
-    <div>
-    <button onClick={() => {
-      // todo: save old accounts in like accounts.bak to allow for a redo
-      // otherwise this is pretty fragile
-      localStorage.setItem("accounts", JSON.stringify(accounts));
-    }}>save accounts</button>
-    </div>
-
-    </div>
-  )
+export default App;
+function copy(accountsInStorage: string) {
+  throw new Error("Function not implemented.");
 }
-
-export default App
-
